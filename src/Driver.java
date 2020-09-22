@@ -13,6 +13,7 @@ import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.io.Text;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
@@ -23,27 +24,83 @@ import java.util.Date;
  * The driver class configures and submits the job to the Hadoop cluster for execution.
  */
 public class Driver extends Configured implements Tool {
-    /*--- CONFIGURATION ----*/
-    public static final String JOB_NAME = "TTP";
-    public static final String INPUT_FILE = "/user/sunyi/ttp/input/wiki_vote.txt"; //input file path or input directory path
-    public static final String OUTPUT_DIR = "/user/sunyi/ttp/output/" + dateUniqueId(); //output path
-    public static final String LOCAL_DIR = "/home/sunyi/ttp/output/" + dateUniqueId();
-    public static final String OUTPUT_FILE = OUTPUT_DIR + "/part-r-00000";
-    public static final int NUM_REDUCE_TASK = 1;
+
+    //-----------CONFIGURATION------------------
+    public static String jobName = "TTP";
+    public static String inputFile = "/user/sunyi/ttp/input/general_rel.txt"; //input path in hdfs
+    public static String outputDir = "/user/sunyi/ttp/output/"; //output path in hdfs
+    public static String localDir = "/home/sunyi/ttp/output/"; //local filesystem output directory
+    public static int reducers = 1;
     public static FileSystem hdfsFileSystem;
-    /*----------------------*/
+    public static int partitions;
+    //------------------------------------------
 
     /**
      * Main
-     * @param args --> formato: hadoop jar DATA/analyzer.jar [#reducers] [input file/dir WET] [ input file/dir INFO] [dictionary file] [output dir]
+     * @param args class_name #partitions [hdfs_input_file] [hdfs_output_dir] [local_dir] [#reducers]
      * @throws Exception
      */
     public static void main(String[] args) throws Exception {
 
-        System.out.println("File: " + INPUT_FILE);
-        int res = ToolRunner.run(new Driver(), args); //(args: <file input>, <dir output>, <#reducer>)
-        hdfsFileSystem.copyToLocalFile(false, new Path(OUTPUT_FILE), new Path(LOCAL_DIR));
+        long startProgram = System.nanoTime();
 
+        partitions = Integer.parseInt(args[1]);
+        if (args.length > 2){
+            inputFile = args[2];
+        }
+        if (args.length > 3){
+            outputDir = args[3];
+        }
+        if (args.length > 4){
+            localDir = args[4];
+        }
+        if (args.length > 5){
+            reducers = Integer.parseInt(args[5]);
+        }
+
+        String dateId = dateUniqueId();
+        outputDir += dateId;
+        localDir += dateId;
+
+        long startJob = System.nanoTime();
+
+        int res = ToolRunner.run(new Driver(), args);
+        hdfsFileSystem.copyToLocalFile(false, new Path(outputDir + "/part-r-00000"), new Path(localDir));
+
+        long endJob = System.nanoTime();
+
+        printResults(localDir + "/part-r-00000");
+
+        System.out.println("Job execution time     = " + (startJob - endJob));
+        System.out.println("Program execution time = " + (startProgram - System.nanoTime()));
+        System.out.println("*********************");
+
+        System.exit(res);
+    }
+
+    public int run(String[] args) throws Exception {
+        Configuration conf = getConf();
+        hdfsFileSystem = FileSystem.get(conf);
+        conf.set("partitions", args[1]);
+        Job job = Job.getInstance(getConf(), jobName);
+        job.setJarByClass(this.getClass());
+        job.setMapperClass(Map.class);
+        job.setReducerClass(Reduce.class);
+        job.setOutputKeyClass(Text.class);
+        job.setOutputValueClass(Text.class);
+        FileInputFormat.addInputPath(job, new Path(inputFile));
+        FileOutputFormat.setOutputPath(job, new Path(outputDir));
+
+        return job.waitForCompletion(true) ? 0 : 1;
+    }
+
+    public static String dateUniqueId(){
+        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyyMMdd_HHmmss");
+        Date date = new Date();
+        return dateFormat.format(date);
+    }
+
+    public static void printResults(String fileName){
         //Read the output file to count the number of triangles
         BufferedReader reader;
         double triangles = 0;
@@ -51,7 +108,7 @@ public class Driver extends Configured implements Tool {
         int notOnes = 0;
 
         try {
-            reader = new BufferedReader(new FileReader(LOCAL_DIR));
+            reader = new BufferedReader(new FileReader(fileName));
             String line;
             String values[];
 
@@ -67,33 +124,14 @@ public class Driver extends Configured implements Tool {
             e.printStackTrace();
         }
 
-        double value = 1/(Double.parseDouble(args[1])-1);
+        double value = 1/(partitions-1);
         triangles = linesRead - notOnes + notOnes * value;
 
-        System.out.println("Number of triangles = " + triangles + ", lines read: " + linesRead + ", ones = " + (linesRead - notOnes) + ", not ones = " + notOnes + ", " + value);
+        System.out.println("*********************\nFile = " + inputFile +
+                "Number of triangles = " + triangles +
+                "\nLines read: " + linesRead +
+                "\nNumber of type 2 and 3 triangles (value 1.0) = " + (linesRead - notOnes) +
+                "\nNumber of type 1 triangles (value " + value + ") = " + notOnes);
 
-        System.exit(res);
-    }
-
-    public int run(String[] args) throws Exception {
-        Configuration conf = getConf();
-        hdfsFileSystem = FileSystem.get(conf);
-        conf.set("partitions", args[1]);
-        Job job = Job.getInstance(getConf(), JOB_NAME);
-        job.setJarByClass(this.getClass());
-        job.setMapperClass(Map.class);
-        job.setReducerClass(Reduce.class);
-        job.setOutputKeyClass(Text.class);
-        job.setOutputValueClass(Text.class);
-        FileInputFormat.addInputPath(job, new Path(INPUT_FILE) );
-        FileOutputFormat.setOutputPath(job, new Path(OUTPUT_DIR));
-
-        return job.waitForCompletion(true) ? 0 : 1;
-    }
-
-    public static String dateUniqueId(){
-        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyyMMdd_HHmmss");
-        Date date = new Date();
-        return dateFormat.format(date);
     }
 }
