@@ -30,6 +30,7 @@ public class Graph {
 
     }
 
+    //construct for testing with string
     public Graph(String[] edges) {
 
         HashMap<Integer, ArrayList<Integer>> neighbours = new HashMap<>();
@@ -90,9 +91,13 @@ public class Graph {
         return result;
     }
 
+    private int convertNames(int i){
+	return new_old_map.get(i);
+	}
+
     /**
      * Given an hashmap<node, list of his neighbours>, it orders and renames
-     * the nodes based on the number of its neighbours in decreasing order,
+     * the nodes based on the number of their neighbours in decreasing order,
      * i.e the node with the highest number of neighbours will be node 0,
      * the node with the lowest number of neighbours will be node n-1
      * It then creates the adjacency array of the graph
@@ -165,9 +170,7 @@ public class Graph {
             neighbours.put(node, new ArrayList<Integer>());
         }
 
-        if(!neighbours.get(node).contains(neighbour)){
-            neighbours.get(node).add(neighbour);
-        }
+        neighbours.get(node).add(neighbour);
 
     }
 

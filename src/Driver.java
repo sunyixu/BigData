@@ -18,6 +18,7 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Driver for MapReduce Job in Java.
@@ -25,55 +26,52 @@ import java.util.Date;
  */
 public class Driver extends Configured implements Tool {
 
-    //-----------CONFIGURATION------------------
+    //-----------CONFIGURATION---------------------------------------------
     public static String jobName = "TTP";
-    public static String inputFile = "/user/sunyi/ttp/input/general_rel.txt"; //input path in hdfs
+    public static String inputFile = "/user/sunyi/ttp/input/facebook.txt"; //input path in hdfs
     public static String outputDir = "/user/sunyi/ttp/output/"; //output path in hdfs
     public static String localDir = "/home/sunyi/ttp/output/"; //local filesystem output directory
     public static int reducers = 1;
     public static FileSystem hdfsFileSystem;
     public static int partitions;
-    //------------------------------------------
+    //---------------------------------------------------------------------
 
     /**
      * Main
-     * @param args class_name #partitions [hdfs_input_file] [hdfs_output_dir] [local_dir] [#reducers]
+     * @param args class_name #partitions [#reducers] [hdfs_input_file] [hdfs_output_dir] [local_dir]
      * @throws Exception
      */
     public static void main(String[] args) throws Exception {
 
-        long startProgram = System.nanoTime();
-
         partitions = Integer.parseInt(args[1]);
-        if (args.length > 2){
-            inputFile = args[2];
+
+        if (args.length > 2) {
+            reducers = Integer.parseInt(args[2]);
         }
-        if (args.length > 3){
-            outputDir = args[3];
+
+        if (args.length > 3) {
+            inputFile = args[3];
         }
-        if (args.length > 4){
-            localDir = args[4];
+        if (args.length > 4) {
+            outputDir = args[4];
         }
-        if (args.length > 5){
-            reducers = Integer.parseInt(args[5]);
+        if (args.length > 5) {
+            localDir = args[5];
         }
 
         String dateId = dateUniqueId();
         outputDir += dateId;
         localDir += dateId;
 
-        long startJob = System.nanoTime();
+        long startJob = System.currentTimeMillis();
 
         int res = ToolRunner.run(new Driver(), args);
         hdfsFileSystem.copyToLocalFile(false, new Path(outputDir + "/part-r-00000"), new Path(localDir));
 
-        long endJob = System.nanoTime();
+        long endJob = System.currentTimeMillis();
+        long jobExecTime = endJob - startJob;
 
-        printResults(localDir + "/part-r-00000");
-
-        System.out.println("Job execution time     = " + (startJob - endJob));
-        System.out.println("Program execution time = " + (startProgram - System.nanoTime()));
-        System.out.println("*********************");
+        printResults(jobExecTime);
 
         System.exit(res);
     }
@@ -100,7 +98,7 @@ public class Driver extends Configured implements Tool {
         return dateFormat.format(date);
     }
 
-    public static void printResults(String fileName){
+    public static void printResults(long jobExecTime){
         //Read the output file to count the number of triangles
         BufferedReader reader;
         double triangles = 0;
@@ -108,7 +106,7 @@ public class Driver extends Configured implements Tool {
         int notOnes = 0;
 
         try {
-            reader = new BufferedReader(new FileReader(fileName));
+            reader = new BufferedReader(new FileReader(localDir));
             String line;
             String values[];
 
@@ -124,14 +122,20 @@ public class Driver extends Configured implements Tool {
             e.printStackTrace();
         }
 
-        double value = 1/(partitions-1);
+        double value = 1.0/(partitions-1.0);
         triangles = linesRead - notOnes + notOnes * value;
 
-        System.out.println("*********************\nFile = " + inputFile +
-                "Number of triangles = " + triangles +
-                "\nLines read: " + linesRead +
-                "\nNumber of type 2 and 3 triangles (value 1.0) = " + (linesRead - notOnes) +
-                "\nNumber of type 1 triangles (value " + value + ") = " + notOnes);
+        String hms = String.format("%02d:%02d:%02d", TimeUnit.MILLISECONDS.toHours(jobExecTime),
+                TimeUnit.MILLISECONDS.toMinutes(jobExecTime) % TimeUnit.HOURS.toMinutes(1),
+                TimeUnit.MILLISECONDS.toSeconds(jobExecTime) % TimeUnit.MINUTES.toSeconds(1));
 
+        System.out.println("******************************************************" +
+		"\nInput File = " + inputFile +
+                "\nPartitions = " + partitions +
+                "\nTriangles = " + triangles +
+                "\nType-2 and Type-3 triangles (value 1.0) = " + (linesRead - notOnes) +
+                "\nType-1 triangles (value " + value + ") = " + notOnes/value +
+                "\nJob execution time = " + hms + " (" + jobExecTime + " ms)");
+        System.out.println("******************************************************");
     }
 }

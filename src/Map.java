@@ -17,7 +17,6 @@ public class Map extends Mapper<LongWritable, Text, Text, Text> {
     public void map(LongWritable offset, Text lineText, Context context) throws IOException, InterruptedException {
         String[] line = lineText.toString().split("\t");
         int p = Integer.parseInt(context.getConfiguration().get("partitions"));
-        //todo cambiare stringtokenizer con il metodo split di string
         int node1 = Integer.parseInt(line[0]);
         int node2 = Integer.parseInt(line[1]);
         int part1 = node1 % p;
@@ -31,7 +30,6 @@ public class Map extends Mapper<LongWritable, Text, Text, Text> {
         Text key = new Text();
         Text value = new Text();
 
-        //todo implementare con tuple?
         for(int a = 0; a <= p-2; a++){
             for(int b = a + 1; b <= p - 1; b++){
                 if ((part1 == a && part2 == b) || (part1 == part2 && (part1 == a || part1 == b))){

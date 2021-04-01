@@ -1,6 +1,7 @@
-Papers/
+ignorare/
 input/
 test/
 .idea/
 sdk/
 Comandi_bigdata.md
+src/Test.java
